@@ -3,7 +3,7 @@ import auth from '../Models/authModel.js';
 import auction from '../Models/authModels.js';
 
 const authMiddleware = (req,res,next) => {
-    const token = req.header('Authorization');
+    const token = req.headers('Authorization');
 
     if(!token){
         return res.status(401).send('Invailed not found')
