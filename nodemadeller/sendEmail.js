@@ -4,15 +4,15 @@ import nodemailer from 'nodemailer';
 const transporter = nodemailer.createTransport({
   service: 'Gmail',
   auth: {
-    user: '',  // Replace with your email address
-    pass: 'your-email-password'   // Replace with your email password or app-specific password
+    user: EMAIL_USER,  // Replace with your email address
+    pass: EMAIL_PASS,   // Replace with your email password or app-specific password
   }
 });
 
 const sendEmail = async (to, subject, htmlContent) => {
   try {
     const mailOptions = {
-      from: '',  // Replace with your email address
+      from: email,  // Replace with your email address
       to,
       subject,
       html: htmlContent
