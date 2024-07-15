@@ -1,63 +1,96 @@
-// import bcryptjs from "bcryptjs";
-// import { errorHandler } from "../Utils/Error.js";
-// //import User from "../Models/auctionModel.js.js";
+import User from "../Models/Usermodels.js";
+import errorHandler from "./Utils/Error.js";
+import bcryptjs from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import dotenv from "dotenv";
 
-// export const updateUser = async (req, res, next) => {
-//     if (req.user.id !== req.params.id) {
-//       return next(errorHandler(403, 'You are not allowed to update this user'));
-//     }
-//     if (req.body.password) {
-//       if (req.body.password.length < 6) {
-//         return next(errorHandler(400, 'Password must be at least 6 characters'));
-//       }
-//       req.body.password = bcryptjs.hashSync(req.body.password, 10);
-//     }
-//     if (req.body.username) {
-//       if (req.body.username.length < 7 || req.body.username.length > 20) {
-//         return next(
-//           errorHandler(400, 'Username must be between 7 and 20 characters')
-//         );
-//       }
-//       if (req.body.username.includes(' ')) {
-//         return next(errorHandler(400, 'Username cannot contain spaces'));
-//       }
-//       if (req.body.username !== req.body.username.toLowerCase()) {
-//         return next(errorHandler(400, 'Username must be lowercase'));
-//       }
-//       if (!req.body.username.match(/^[a-zA-Z0-9]+$/)) {
-//         return next(
-//           errorHandler(400, 'Username can only contain letters and numbers')
-//         );
-//       }
-//     }
-//     try {
-//       const updatedUser = await User.findByIdAndUpdate(
-//         req.params.id,
-//         {
-//           $set: {
-//             username: req.body.username,
-//             email: req.body.email,
-//             profilePicture: req.body.profilePicture,
-//             password: req.body.password,
-//           },
-//         },
-//         { new: true }
-//       );
-//       const { password, ...rest } = updatedUser._doc;
-//       res.status(200).json(rest);
-//     } catch (error) {
-//       next(error);
-//     }
-//   };
+dotenv.config();
 
-//   export const deleteUser = async (req, res, next) => {
-//     if (req.user.id !== req.params.id) {
-//       return next(errorHandler(403, 'You are not allowed to delete this user'));
-//     }
-//     try {
-//       await User.findByIdAndDelete(req.params.id);
-//       res.status(200).json( 'User deleted successfully' );
-//     } catch (error) {
-//       next(error);
-//     }
-//   };
+export const register = async (req, res, next) => {
+    const { username, email, password } = req.body;
+    if (!username || !email || !password || username === "" || email === "" || password === "") {
+        return next(errorHandler(400, 'All the Fields Are Required'));
+    }
+
+    try {
+        const hashedPassword = await bcryptjs.hash(password, 10);
+        const newUser = new User({ username, email, password: hashedPassword });
+        await newUser.save();
+        res.status(200).json({ message: "User Registered Successfully", result: newUser });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export const login = async (req, res, next) => {
+    const { email, password } = req.body;
+
+    if (!email || !password || email === "" || password === "") {
+        return next(errorHandler(400, 'All the Fields Are Required'));
+    }
+
+    try {
+        const user = await User.findOne({ email });
+        const isPasswordCorrect =  bcryptjs.compareSync(password, user.password);
+        if (!user) {
+            return next(errorHandler(404, 'Invalid credentials'));
+        }
+
+        
+        if (!isPasswordCorrect) {
+            return next(errorHandler(404, 'Invalid credentials'));
+        }
+
+        const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        const { password: passkey, ...rest } = user.toObject();  // Convert user to plain object and exclude password
+        res.status(200).json({ message: 'User logged in successfully', user: rest, token });
+
+    } catch (error) {
+        next(error);
+    }
+}
+
+export const google = async (req, res, next) => {
+    const { email, name, profilePic } = req.body;
+    try {
+      const user = await User.findOne({ email });
+      if (user) {
+        const token = jwt.sign(
+          { id: user._id, isAdmin: user.isAdmin },
+          process.env.JWT_SECRET_KEY
+        );
+  
+        const { password: passkey, ...rest } = user._doc;
+  
+        res
+          .status(200)
+          .json({ message: "User LoggedIn Successfully", rest, token });
+      } else {
+        const generatePassword =
+          Math.random().toString(36).slice(-8) +
+          Math.random().toString(36).slice(-8);
+        const hashedPassword = bcryptjs.hashSync(generatePassword, 10);
+        const newUser = new User({
+          username:
+            name.toLowerCase().split(" ").join("") +
+            Math.random().toString(9).slice(-4),
+          email,
+          password: hashedPassword,
+          profilePicture: profilePic,
+        });
+        await newUser.save();
+        const token = jwt.sign(
+          { id: newUser._id, isAdmin: newUser.isAdmin },
+          process.env.JWT_SECRET_KEY
+        );
+  
+        const { password: passkey, ...rest } = newUser._doc;
+  
+        res
+          .status(200)
+          .json({ message: "User LoggedIn Successfully", rest, token });
+      }
+    } catch (error) {
+      next(error);
+    }
+  };
